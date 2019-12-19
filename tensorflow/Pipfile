@@ -8,6 +8,7 @@ verify_ssl = true
 [packages]
 tensorflow-gpu = "==1.15.0"
 numpy = "*"
+pandas = "*"
 
 [requires]
 python_version = "3"

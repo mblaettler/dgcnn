@@ -11,7 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(BASE_DIR, 'models'))
 sys.path.append(os.path.join(BASE_DIR, 'utils'))
-import provider
+import PCProvider as provider
 import tf_util
 
 parser = argparse.ArgumentParser()
@@ -30,7 +30,7 @@ FLAGS = parser.parse_args()
 
 
 BATCH_SIZE = FLAGS.batch_size
-NUM_POINT = FLAGS.num_point
+NUM_POINT = 4096
 MAX_EPOCH = FLAGS.max_epoch
 BASE_LEARNING_RATE = FLAGS.learning_rate
 GPU_INDEX = FLAGS.gpu
@@ -48,8 +48,8 @@ os.system('cp train.py %s' % (LOG_DIR)) # bkp of train procedure
 LOG_FOUT = open(os.path.join(LOG_DIR, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(FLAGS)+'\n')
 
-MAX_NUM_POINT = 2048
-NUM_CLASSES = 40
+MAX_NUM_POINT = 4096
+NUM_CLASSES = 16
 
 BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
@@ -60,9 +60,9 @@ HOSTNAME = socket.gethostname()
 
 # ModelNet40 official train/test split
 TRAIN_FILES = provider.getDataFiles( \
-    os.path.join(BASE_DIR, 'data/modelnet40_ply_hdf5_2048/train_files.txt'))
+    os.path.join(BASE_DIR, 'data/SVHD/train_files.txt'))
 TEST_FILES = provider.getDataFiles(\
-    os.path.join(BASE_DIR, 'data/modelnet40_ply_hdf5_2048/test_files.txt'))
+    os.path.join(BASE_DIR, 'data/SVHD/test_files.txt'))
 
 def log_string(out_str):
     LOG_FOUT.write(out_str+'\n')
