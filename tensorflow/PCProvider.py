@@ -3,8 +3,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-DATA_DIR = "PATH"
-META_DIR = "PATH"
+DATA_DIR = "/path/to/data"
+META_DIR = "/path/to/metadata"
 
 NUM_POINT = 4096
 
@@ -19,12 +19,20 @@ CLASSES = {
     "Car": 7,
     "CarWithTrailer": 8,
     "Truck": 9,
-    "TruckDumptor": 10,
-    "TruckLowLoaded": 11,
-    "TruckWithTrailer": 12,
-    "Van": 13,
-    "VanPickup": 14,
-    "VanWithTrailer": 15
+    "TruckCarTransporterLoaded": 10,
+    "TruckDumptor": 11,
+    "TruckLowLoaded": 12,
+    "TruckTanker": 13,
+    "TruckWithTrailer": 14,
+    "Van": 15,
+    "VanDelivery": 16,
+    "VanPickup": 17,
+    "VanPickupWithTrailer": 18,
+    "VanWithTrailer": 19,
+    "Phantom": 20,
+    "ArticVan": 21,
+    "TruckCarTransporterEmpty": 22,
+    "VanDeliveryWithTrailer": 23
 }
 
 metadata_cache = {}
@@ -177,11 +185,11 @@ def load_asc(filename: str):
 
     size = len(x)
 
-    if size > NUM_POINT:
-        # print(f"Got size {size} for {filename}")
+    if size > NUM_POINT:  # downsample
+        print(f"Got size {size} for {filename}")
         rand_idxs = np.random.choice(size, NUM_POINT, replace=False)
         data = data[rand_idxs, :]
-    else:
+    elif size < NUM_POINT:  # upsample
         rand_idxs = np.random.randint(0, size, size=NUM_POINT - size)
         sampled = data[rand_idxs, :]
         data = np.concatenate((data, sampled), axis=0)
