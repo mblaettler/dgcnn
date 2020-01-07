@@ -26,6 +26,7 @@ parser.add_argument('--momentum', type=float, default=0.9, help='Initial learnin
 parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
 parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
 parser.add_argument('--decay_rate', type=float, default=0.7, help='Decay rate for lr decay [default: 0.8]')
+parser.add_argument('--tic-data', action='store_true', help="If flag is set TIC data will be loaded (otherwise FPS)")
 FLAGS = parser.parse_args()
 
 
@@ -58,11 +59,16 @@ BN_DECAY_CLIP = 0.99
 
 HOSTNAME = socket.gethostname()
 
-# ModelNet40 official train/test split
+if FLAGS.tic_data:
+    folder = "TIC"
+else:
+    folder = "FPS"
+
+data_path = f"data/SVHD/{folder}"
 TRAIN_FILES = provider.getDataFiles( \
-    os.path.join(BASE_DIR, 'data/SVHD/train_files.txt'))
+    os.path.join(BASE_DIR, data_path, 'train_files.txt'))
 TEST_FILES = provider.getDataFiles(\
-    os.path.join(BASE_DIR, 'data/SVHD/test_files.txt'))
+    os.path.join(BASE_DIR, data_path, 'test_files.txt'))
 
 def log_string(out_str):
     LOG_FOUT.write(out_str+'\n')
@@ -171,6 +177,10 @@ def train():
 def train_one_epoch(sess, ops, train_writer):
     """ ops: dict mapping from string to tf ops """
     is_training = True
+
+    rotate = False
+    shift = False
+    scale = False
     
     # Shuffle train files
     train_file_idxs = np.arange(0, len(TRAIN_FILES))
@@ -195,11 +205,20 @@ def train_one_epoch(sess, ops, train_writer):
             end_idx = (batch_idx+1) * BATCH_SIZE
             
             # Augment batched point clouds by rotation and jittering
-            rotated_data = provider.rotate_point_cloud(current_data[start_idx:end_idx, :, :])
+            if rotate:
+                rotated_data = provider.rotate_point_cloud(current_data[start_idx:end_idx, :, :])
+            else:
+                rotated_data = current_data[start_idx:end_idx, :, :]
             jittered_data = provider.jitter_point_cloud(rotated_data)
-            jittered_data = provider.random_scale_point_cloud(jittered_data)
-            jittered_data = provider.rotate_perturbation_point_cloud(jittered_data)
-            jittered_data = provider.shift_point_cloud(jittered_data)
+
+            if scale:
+                jittered_data = provider.random_scale_point_cloud(jittered_data)
+
+            if rotate:
+                jittered_data = provider.rotate_perturbation_point_cloud(jittered_data)
+
+            if shift:
+                jittered_data = provider.shift_point_cloud(jittered_data)
 
             feed_dict = {ops['pointclouds_pl']: jittered_data,
                          ops['labels_pl']: current_label[start_idx:end_idx],
@@ -244,6 +263,7 @@ def eval_one_epoch(sess, ops, test_writer):
                          ops['is_training_pl']: is_training}
             summary, step, loss_val, pred_val = sess.run([ops['merged'], ops['step'],
                 ops['loss'], ops['pred']], feed_dict=feed_dict)
+            test_writer.add_summary(summary, step)
             pred_val = np.argmax(pred_val, 1)
             correct = np.sum(pred_val == current_label[start_idx:end_idx])
             total_correct += correct

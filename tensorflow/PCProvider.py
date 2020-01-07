@@ -3,8 +3,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-DATA_DIR = "/path/to/data"
-META_DIR = "/path/to/metadata"
+DATA_DIR = "E:\\SICKDataCleanedASC_ShiftedDownsampled"
+META_DIR = "E:\\SICKMetadata"
 
 NUM_POINT = 4096
 
