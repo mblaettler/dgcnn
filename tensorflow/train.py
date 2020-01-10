@@ -12,13 +12,13 @@ sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(BASE_DIR, 'models'))
 sys.path.append(os.path.join(BASE_DIR, 'utils'))
 import PCProvider as provider
+from statistics import mean
 import tf_util
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
 parser.add_argument('--model', default='dgcnn', help='Model name: dgcnn')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--num_point', type=int, default=1024, help='Point Number [256/512/1024/2048] [default: 1024]')
 parser.add_argument('--max_epoch', type=int, default=250, help='Epoch to run [default: 250]')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch Size during training [default: 32]')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='Initial learning rate [default: 0.001]')
@@ -50,7 +50,6 @@ LOG_FOUT = open(os.path.join(LOG_DIR, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(FLAGS)+'\n')
 
 MAX_NUM_POINT = 4096
-NUM_CLASSES = 16
 
 BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
@@ -61,8 +60,10 @@ HOSTNAME = socket.gethostname()
 
 if FLAGS.tic_data:
     folder = "TIC"
+    NUM_CLASSES = 21
 else:
     folder = "FPS"
+    NUM_CLASSES = 24
 
 data_path = f"data/SVHD/{folder}"
 TRAIN_FILES = provider.getDataFiles( \
@@ -164,8 +165,8 @@ def train():
             log_string('**** EPOCH %03d ****' % (epoch))
             sys.stdout.flush()
              
-            train_one_epoch(sess, ops, train_writer)
-            eval_one_epoch(sess, ops, test_writer)
+            train_one_epoch(sess, ops, train_writer, epoch)
+            eval_one_epoch(sess, ops, test_writer, epoch)
             
             # Save the variables to disk.
             if epoch % 10 == 0:
@@ -174,13 +175,16 @@ def train():
 
 
 
-def train_one_epoch(sess, ops, train_writer):
+def train_one_epoch(sess, ops, train_writer, epoch):
     """ ops: dict mapping from string to tf ops """
     is_training = True
 
     rotate = False
     shift = False
     scale = False
+
+    losses = []
+    accuracies = []
     
     # Shuffle train files
     train_file_idxs = np.arange(0, len(TRAIN_FILES))
@@ -225,18 +229,27 @@ def train_one_epoch(sess, ops, train_writer):
                          ops['is_training_pl']: is_training,}
             summary, step, _, loss_val, pred_val = sess.run([ops['merged'], ops['step'],
                 ops['train_op'], ops['loss'], ops['pred']], feed_dict=feed_dict)
-            train_writer.add_summary(summary, step)
             pred_val = np.argmax(pred_val, 1)
             correct = np.sum(pred_val == current_label[start_idx:end_idx])
             total_correct += correct
             total_seen += BATCH_SIZE
             loss_sum += loss_val
-        
-        log_string('mean loss: %f' % (loss_sum / float(num_batches)))
-        log_string('accuracy: %f' % (total_correct / float(total_seen)))
 
+        mean_loss = loss_sum / float(num_batches)
+        mean_acc = total_correct / float(total_seen)
+
+        losses.append(mean_loss)
+        accuracies.append(mean_acc)
+
+        log_string('mean loss: %f' % mean_loss)
+        log_string('accuracy: %f' % mean_acc)
+
+    summary = tf.Summary()
+    summary.value.add(tag="Accuracy", simple_value=mean(accuracies))
+    summary.value.add(tag="Loss", simple_value=mean(losses))
+    train_writer.add_summary(summary, epoch)
         
-def eval_one_epoch(sess, ops, test_writer):
+def eval_one_epoch(sess, ops, test_writer, epoch):
     """ ops: dict mapping from string to tf ops """
     is_training = False
     total_correct = 0
@@ -263,7 +276,6 @@ def eval_one_epoch(sess, ops, test_writer):
                          ops['is_training_pl']: is_training}
             summary, step, loss_val, pred_val = sess.run([ops['merged'], ops['step'],
                 ops['loss'], ops['pred']], feed_dict=feed_dict)
-            test_writer.add_summary(summary, step)
             pred_val = np.argmax(pred_val, 1)
             correct = np.sum(pred_val == current_label[start_idx:end_idx])
             total_correct += correct
@@ -273,10 +285,18 @@ def eval_one_epoch(sess, ops, test_writer):
                 l = current_label[i]
                 total_seen_class[l] += 1
                 total_correct_class[l] += (pred_val[i-start_idx] == l)
-            
-    log_string('eval mean loss: %f' % (loss_sum / float(total_seen)))
-    log_string('eval accuracy: %f'% (total_correct / float(total_seen)))
+
+    mean_loss = loss_sum / float(total_seen)
+    mean_acc = total_correct / float(total_seen)
+
+    log_string('eval mean loss: %f' % mean_loss)
+    log_string('eval accuracy: %f' % mean_acc)
     log_string('eval avg class acc: %f' % (np.mean(np.array(total_correct_class)/np.array(total_seen_class,dtype=np.float))))
+
+    summary = tf.Summary()
+    summary.value.add(tag="Accuracy", simple_value=mean_acc)
+    summary.value.add(tag="Loss", simple_value=mean_loss)
+    test_writer.add_summary(summary, epoch)
          
 
 
