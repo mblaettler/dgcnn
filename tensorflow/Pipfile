@@ -9,6 +9,8 @@ verify_ssl = true
 tensorflow-gpu = "==1.15.0"
 numpy = "*"
 pandas = "*"
+imageio = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3"
